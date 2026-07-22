@@ -8,8 +8,39 @@
  * Learn more at https://developers.cloudflare.com/workers/
  */
 
+import puppeteer from '@cloudflare/puppeteer';
+
 export default {
 	async fetch(request, env, ctx) {
-		return new Response("Hello World!");
+		const { searchParams } = new URL(request.url);
+		const url = searchParams.get('url');
+
+		if (!url) {
+			return new Response('Missing url', { status: 400 });
+		}
+
+		let browser;
+		let page;
+
+		try {
+			browser = await puppeteer.launch(env.MY_BROWSER);
+			page = await browser.newPage();
+
+			await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+
+			const html = await page.content();
+
+			return new Response(html, {
+				headers: {
+					'content-type': 'text/html; charset=utf-8',
+				},
+			});
+		} catch (err) {
+			console.error(err);
+			return new Response(err.stack ?? err.message, { status: 500 });
+		} finally {
+			if (page) await page.close();
+			if (browser) await browser.close();
+		}
 	},
 };
